@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Papa from 'papaparse'
+import { logAuditAction } from '@/lib/audit'
 
 export async function POST(request: Request) {
     try {
@@ -132,6 +133,8 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Failed to insert keywords' }, { status: 500 })
             }
         }
+
+        await logAuditAction('IMPORT_DATASET', 'dataset', datasetId, workspaceId, { rows: keywordsToInsert.length })
 
         return NextResponse.json({ success: true, datasetId, rowsInserted: keywordsToInsert.length })
 
