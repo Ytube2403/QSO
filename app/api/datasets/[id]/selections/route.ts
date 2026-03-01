@@ -22,7 +22,8 @@ export async function POST(request: Request, context: unknown) {
         const insertPayload = selections.map((sel: any) => ({
             dataset_id: datasetId,
             keyword_id: sel.keyword_id,
-            notes: sel.note || '',
+            selected_by: user.id,
+            note: sel.note || '',
             tags: sel.tags || []
         }))
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -89,11 +90,13 @@ export function WorkspaceList() {
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {workspaces.map((workspace) => (
-                        <Card key={workspace.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                            <CardHeader>
-                                <CardTitle className="text-lg">{workspace.name}</CardTitle>
-                            </CardHeader>
-                        </Card>
+                        <Link key={workspace.id} href={`/app/w/${workspace.id}`}>
+                            <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                <CardHeader>
+                                    <CardTitle className="text-lg">{workspace.name}</CardTitle>
+                                </CardHeader>
+                            </Card>
+                        </Link>
                     ))}
                 </div>
             )}

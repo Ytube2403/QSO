@@ -27,17 +27,20 @@ export function ImportModal({ workspaceId }: { workspaceId: string }) {
             setFile(selected)
             Papa.parse(selected, {
                 header: true,
-                preview: 1, // Only read first row to get headers
+                skipEmptyLines: true,
                 complete: (results) => {
                     if (results.meta.fields) {
-                        const h = results.meta.fields
-                        setHeaders(h)
-
-                        // Auto detect
-                        const rankCols = h.filter(c => c.startsWith('Rank -'))
-                        if (rankCols.length > 0) {
-                            setMyRankColumn(rankCols[0]) // default first to my rank
-                            setCompetitorColumns(rankCols.slice(1, 11)) // default next 10 to competitors
+                        const appsSet = new Set<string>()
+                        const data = results.data as Record<string, string>[]
+                        data.forEach(row => {
+                            const appName = row['App Name'] || row['App Id']
+                            if (appName) appsSet.add(appName.trim())
+                        })
+                        const uniqueApps = Array.from(appsSet)
+                        setHeaders(uniqueApps)
+                        if (uniqueApps.length > 0) {
+                            setMyRankColumn(uniqueApps[0])
+                            setCompetitorColumns(uniqueApps.slice(1, 11))
                         }
                     }
                 }
@@ -109,12 +112,12 @@ export function ImportModal({ workspaceId }: { workspaceId: string }) {
 
                         {headers.length > 0 && (
                             <div className="space-y-4 border p-4 rounded-md mt-4">
-                                <h3 className="font-semibold">Column Mapping</h3>
+                                <h3 className="font-semibold">App Mapping</h3>
 
                                 <div className="space-y-2">
-                                    <Label>My Rank Column (Choose 1)</Label>
+                                    <Label>My App (Choose 1)</Label>
                                     <RadioGroup value={myRankColumn} onValueChange={setMyRankColumn} className="grid grid-cols-2 gap-2">
-                                        {headers.filter(h => h.startsWith('Rank -') || h.includes('Rank')).map(h => (
+                                        {headers.map(h => (
                                             <div className="flex items-center space-x-2" key={h}>
                                                 <RadioGroupItem value={h} id={`my-${h}`} />
                                                 <Label htmlFor={`my-${h}`} className="text-sm truncate" title={h}>{h}</Label>
@@ -124,9 +127,9 @@ export function ImportModal({ workspaceId }: { workspaceId: string }) {
                                 </div>
 
                                 <div className="space-y-2 pt-4">
-                                    <Label>Competitor Rank Columns (Choose up to 10) - Selected: {competitorColumns.length}</Label>
+                                    <Label>Competitor Apps (Choose up to 10) - Selected: {competitorColumns.length}</Label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {headers.filter(h => (h.startsWith('Rank -') || h.includes('Rank')) && h !== myRankColumn).map(h => (
+                                        {headers.filter(h => h !== myRankColumn).map(h => (
                                             <div className="flex items-center space-x-2" key={h}>
                                                 <Checkbox
                                                     id={`comp-${h}`}

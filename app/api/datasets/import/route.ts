@@ -23,6 +23,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
+        // Import safety: file size limit (10MB)
+        const MAX_FILE_SIZE = 10 * 1024 * 1024
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 })
+        }
+
         const competitorColumns: string[] = competitorColumnsStr ? JSON.parse(competitorColumnsStr) : []
 
         // Read file
@@ -39,6 +45,12 @@ export async function POST(request: Request) {
         }
 
         const rows = parsed.data as Record<string, any>[]
+
+        // Import safety: row count limit (10,000)
+        const MAX_ROWS = 10000
+        if (rows.length > MAX_ROWS) {
+            return NextResponse.json({ error: `Too many rows (${rows.length}). Maximum is ${MAX_ROWS}.` }, { status: 400 })
+        }
 
         // Create dataset
         const { data: dataset, error: datasetError } = await supabase
@@ -61,66 +73,78 @@ export async function POST(request: Request) {
 
         const datasetId = dataset.id
 
-        // Map rows to keywords
-        const keywordsToInsert = rows.map((row) => {
+        let keywordsToInsert: any[] = []
+
+        // Long format mapping
+        const keywordMap = new Map<string, any>()
+
+        rows.forEach(row => {
             const keywordRaw = row['Keyword'] || row['keyword'] || ''
             const keyword = String(keywordRaw).trim().toLowerCase()
 
-            const volumeStr = row['Volume'] || row['volume']
-            const volume = volumeStr ? parseFloat(volumeStr) : null
+            if (!keyword) return
 
-            const diffStr = row['Difficulty'] || row['difficulty']
-            const difficulty = diffStr ? parseFloat(diffStr) : null
+            if (!keywordMap.has(keyword)) {
+                const volumeStr = row['Volume'] || row['volume']
+                const volume = volumeStr !== undefined && volumeStr !== null && volumeStr !== '' ? parseFloat(volumeStr) : null
 
-            const keiStr = row['KEI'] || row['kei']
-            const kei = keiStr ? parseFloat(keiStr) : null
+                const diffStr = row['Difficulty'] || row['difficulty']
+                const difficulty = diffStr !== undefined && diffStr !== null && diffStr !== '' ? parseFloat(diffStr) : null
 
-            const myRankRaw = parseInt(row[myRankColumn], 10)
-            const myRank = isNaN(myRankRaw) || myRankRaw <= 0 ? null : myRankRaw
+                const keiStr = row['KEI'] || row['kei']
+                const kei = keiStr !== undefined && keiStr !== null && keiStr !== '' ? parseFloat(keiStr) : null
 
-            const competitorRanks: Record<string, number | null> = {}
-            let competitorRankedCount = 0
-            let competitorTopNCount = 0
-            let competitorBestRank: number | null = null
+                keywordMap.set(keyword, {
+                    dataset_id: datasetId,
+                    keyword,
+                    volume,
+                    difficulty,
+                    kei,
+                    my_rank: null,
+                    competitor_ranks: {},
+                    competitor_ranked_count: 0,
+                    competitor_topN_count: 0,
+                    competitor_best_rank: null,
+                    relevancy_score: 0,
+                    total_score: 0
+                })
+            }
 
-            competitorColumns.forEach((col) => {
-                const valRaw = parseInt(row[col], 10)
-                if (!isNaN(valRaw) && valRaw > 0) {
-                    competitorRanks[col] = valRaw
-                    competitorRankedCount++
-                    if (valRaw <= 20) {
-                        competitorTopNCount++
+            const kwData = keywordMap.get(keyword)
+            const appName = String(row['App Name'] || row['App Id'] || '')
+            const rankRaw = parseInt(row['Rank'] || row['rank'], 10)
+            const rank = isNaN(rankRaw) || rankRaw <= 0 ? null : rankRaw
+
+            if (appName === myRankColumn) {
+                kwData.my_rank = rank
+            } else if (competitorColumns.includes(appName)) {
+                kwData.competitor_ranks[appName] = rank
+                if (rank !== null) {
+                    kwData.competitor_ranked_count++
+                    if (rank <= 20) {
+                        kwData.competitor_topN_count++
                     }
-                    if (competitorBestRank === null || valRaw < competitorBestRank) {
-                        competitorBestRank = valRaw
+                    if (kwData.competitor_best_rank === null || rank < kwData.competitor_best_rank) {
+                        kwData.competitor_best_rank = rank
                     }
-                } else {
-                    competitorRanks[col] = null
+                }
+            }
+        })
+
+        keywordsToInsert = Array.from(keywordMap.values()).map(kwData => {
+            competitorColumns.forEach(col => {
+                if (kwData.competitor_ranks[col] === undefined) {
+                    kwData.competitor_ranks[col] = null
                 }
             })
 
-            // Simple relevancy score calculation for MVP
             const maxCompetitors = Math.max(1, competitorColumns.length)
-            const topFactor = competitorTopNCount / maxCompetitors
-            const relevancyScore = topFactor * 100 // 0-100 scale simple mapping
+            const topFactor = kwData.competitor_topN_count / maxCompetitors
+            kwData.relevancy_score = topFactor * 100
 
-            // Simple total_score (just an aggregate for testing)
-            const totalScore = (volume || 0) * 0.5 + relevancyScore * 0.5 - (difficulty || 0) * 2
+            kwData.total_score = (kwData.volume || 0) * 0.5 + kwData.relevancy_score * 0.5 - (kwData.difficulty || 0) * 2
 
-            return {
-                dataset_id: datasetId,
-                keyword,
-                volume,
-                difficulty,
-                kei,
-                my_rank: myRank,
-                competitor_ranks: competitorRanks,
-                competitor_ranked_count: competitorRankedCount,
-                competitor_topN_count: competitorTopNCount,
-                competitor_best_rank: competitorBestRank,
-                relevancy_score: relevancyScore,
-                total_score: totalScore
-            }
+            return kwData
         })
 
         // Batch insert chunking to 500
