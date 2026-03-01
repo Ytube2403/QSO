@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { DataTable } from '@/components/datasets/data-table'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import { PresetSelector } from '@/components/datasets/preset-selector'
 
 export default async function DatasetPage({ params }: { params: Promise<{ workspaceId: string, datasetId: string }> }) {
@@ -46,7 +46,21 @@ export default async function DatasetPage({ params }: { params: Promise<{ worksp
                         {keywords ? keywords.length : 0} keywords analyzed
                     </p>
                 </div>
-                <PresetSelector datasetId={datasetId} workspaceId={workspaceId} />
+                <div className="flex items-center space-x-4">
+                    <PresetSelector datasetId={datasetId} workspaceId={workspaceId} />
+                    <div className="space-x-2 border-l pl-4 border-slate-200">
+                        <Button variant="outline" asChild>
+                            <a href={`/api/datasets/${datasetId}/export?format=csv`} download>
+                                <Download className="mr-2 h-4 w-4" /> CSV
+                            </a>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <a href={`/api/datasets/${datasetId}/export?format=xlsx`} download>
+                                <Download className="mr-2 h-4 w-4" /> XLSX
+                            </a>
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border p-4">
