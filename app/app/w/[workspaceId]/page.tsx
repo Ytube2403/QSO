@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ImportModal } from '@/components/datasets/import-modal'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import Link from 'next/link'
+import { PresetManager } from '@/components/presets/preset-manager'
 
 export default async function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
     const { workspaceId } = await params
@@ -59,6 +60,9 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
                     ))}
                 </div>
             )}
+
+            {/* Preset Manager Section */}
+            <PresetManager workspaceId={workspaceId} />
         </div>
     )
 }
